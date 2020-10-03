@@ -16,7 +16,7 @@ RENDER_SLEEP_TIME = 0.01
 
 # Maximum number of steps allowed by each game
 # A game terminates when this number is reached 
-MAX_NUM_STEPS = 150
+MAX_NUM_STEPS = 1000
 
 # Rewards for colision
 REWARD_COLISION = -1
@@ -186,7 +186,6 @@ class MazeCore(object):
         vr = VISION_RADIUS
         vd = 2*vr+1
         player_pos = (0, 0)
-        goal_pos = DEFAULT_GOAL_POS
         h, w = default_maze_image.shape
         
         mmap_dtype = [('wall', 'bool'),('num_visits', 'int')]
@@ -203,22 +202,13 @@ class MazeCore(object):
         self._vd = 2*vr+1 # vision diameter
         self._w = w
         self._h = h
-        self.goal_pos = goal_pos
         self.ncols = self._w
         self.nrows = self._h
+        self.goal_pos = self.find_empty_pos(lambda pos : not self.is_wall(pos))
         self.player_pos = self.generate_init_player_pos()
         self.num_steps = 0
         vision = self.generate_observation(self.player_pos)
         return vision
-    
-    def generate_init_player_pos(self):
-        range_radius = 8
-        rmin = max(0, self.goal_pos[0] - range_radius)
-        rmax = min(self.nrows, self.goal_pos[0] + range_radius)
-        cmin = max(0, self.goal_pos[1] - range_radius)
-        cmax = min(self.ncols, self.goal_pos[1] + range_radius)
-        rc_minmax = (rmin, rmax, cmin, cmax)
-        return self.find_empty_pos(rc_minmax=rc_minmax)
     
     def is_wall(self, pos):
         return self._mmap['wall'][pos[0], pos[1]]
@@ -229,9 +219,18 @@ class MazeCore(object):
     def is_goal(self, pos):
         return self.goal_pos == pos
     
-    def find_empty_pos(self, rc_minmax=None, max_tries=500, extra_cond=None):
-        """ Finds a pos that is not wall, goal, or player
-        rc_minmax: (rmin, rmax, cmin, cmax)
+    def generate_init_player_pos(self):
+        range_radius = 8
+        rmin = max(0, self.goal_pos[0] - range_radius)
+        rmax = min(self.nrows, self.goal_pos[0] + range_radius)
+        cmin = max(0, self.goal_pos[1] - range_radius)
+        cmax = min(self.ncols, self.goal_pos[1] + range_radius)
+        rc_minmax = (rmin, rmax, cmin, cmax)
+        is_empty = lambda pos : not (self.is_wall(pos) or self.is_goal(pos))
+        return self.find_empty_pos(is_empty, rc_minmax=rc_minmax)
+    
+    def find_empty_pos(self, is_empty, rc_minmax=None, max_tries=500):
+        """ Finds a pos
         """
         if rc_minmax is not None:
             rmin = max(0, rc_minmax[0])
@@ -244,25 +243,18 @@ class MazeCore(object):
             rmax = self.nrows
             cmax = self.ncols
         for i in range(max_tries):
-            r = random.randint(rmin, rmax)
-            c = random.randint(cmin, cmax)
+            r = np.random.randint(rmin, rmax)
+            c = np.random.randint(cmin, cmax)
             pos = (r, c)
-            if not self.is_empty(pos, False): continue
-            if extra_cond and not extra_cond(pos): continue
+            if not is_empty(pos): continue
             return pos
         raise RuntimeError("Couldn't find an empty place.")
     
-    def is_empty(self, pos, test_player_pos=False):
-        is_wall = self.is_wall(pos)
-        is_player = self.is_player(pos) if test_player_pos else False
-        is_goal = self.is_goal(pos)
-        return not (is_wall or is_player or is_goal)
-        
     def set_player_pos(self, pos):
         """ Sets the position of the player
         The position must be valid
         """
-        assert self.is_empty(pos)
+        assert self.is_wall(pos) and self.is_goal(pos)
         self.player_pos = pos
     
     def is_in_vision(self, vision_pos, target_pos):
