@@ -27,3 +27,10 @@ Test
 ```bash
 python -m spinup.run test_policy <spinningup>/data/eox-x3/eox-x3_s0
 ```
+
+# Test
+
+```bash
+python -m unittest discover -s test
+```
+

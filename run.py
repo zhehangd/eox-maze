@@ -1,6 +1,6 @@
 from spinup.algos.pytorch.ppo.ppo import ppo as ppo
 
-import eox_maze
+import maze
 
 from spinup.user_config import DEFAULT_DATA_DIR, FORCE_DATESTAMP, \
                                DEFAULT_SHORTHAND, WAIT_BEFORE_LAUNCH
@@ -70,7 +70,7 @@ def setup_logger_kwargs(exp_name, seed=None, data_dir=None, datestamp=False):
                          exp_name=exp_name)
     return logger_kwargs
 
-env_fn = eox_maze.MazeEnv
+env_fn = maze.MazeEnv
 
 logger_kwargs = setup_logger_kwargs("test_exp")
 

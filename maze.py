@@ -254,7 +254,7 @@ class MazeCore(object):
         """ Sets the position of the player
         The position must be valid
         """
-        assert self.is_wall(pos) and self.is_goal(pos)
+        assert not self.is_wall(pos) and not self.is_goal(pos), pos
         self.player_pos = pos
     
     def is_in_vision(self, vision_pos, target_pos):
