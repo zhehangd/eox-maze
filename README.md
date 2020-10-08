@@ -13,21 +13,22 @@ register(
 ```
 
 # Train and Test
+
 Train
 ```bash
 python -m spinup.run ppo --hid "[32,32]" --env EoxMaze-v0 --exp_name eox-x3 --gamma 0.999 --epochs 200000 --steps_per_epoch 1000
 ```
 
-Plot
+Plot traning progress
 ```bash
-python -m spinup.run plot -s 1000 <spinningup>/data/eox-x3/eox-x3_s0
+python -m spinup.run plot [-s 1000] <data-dir/>
 ```
 
-Test
+Test traning result
 ```bash
-python -m spinup.run test_policy <spinningup>/data/eox-x3/eox-x3_s0
+python test_policy.py  <data-dir>
 ```
-
+I have to make a local copy of test_policy.py otherwise it can't find the local modules.
 # Test
 
 ```bash
