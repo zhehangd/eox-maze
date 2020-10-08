@@ -1,77 +1,143 @@
 from spinup.algos.pytorch.ppo.ppo import ppo as ppo
+from spinup.algos.pytorch.ppo.core import MLPActorCritic
+from spinup.algos.pytorch.ppo.core import MLPCritic
+from spinup.algos.pytorch.ppo.core import Actor
+from torch.distributions.normal import Normal
+from torch.distributions.categorical import Categorical
 
 import maze
 
-from spinup.user_config import DEFAULT_DATA_DIR, FORCE_DATESTAMP, \
-                               DEFAULT_SHORTHAND, WAIT_BEFORE_LAUNCH
-
 import os
 
-def setup_logger_kwargs(exp_name, seed=None, data_dir=None, datestamp=False):
+import numpy as np
+import torch
+import torch.nn as nn
+
+def mlp(sizes, activation, output_activation=nn.Identity):
+    layers = []
+    for j in range(len(sizes)-1):
+        act = activation if j < len(sizes)-2 else output_activation
+        layers += [nn.Linear(sizes[j], sizes[j+1]), act()]
+    return nn.Sequential(*layers)
+
+
+class DummyDistribution(object):
     """
-    Sets up the output_dir for a logger and returns a dict for logger kwargs.
-
-    If no seed is given and datestamp is false, 
-
-    ::
-
-        output_dir = data_dir/exp_name
-
-    If a seed is given and datestamp is false,
-
-    ::
-
-        output_dir = data_dir/exp_name/exp_name_s[seed]
-
-    If datestamp is true, amend to
-
-    ::
-
-        output_dir = data_dir/YY-MM-DD_exp_name/YY-MM-DD_HH-MM-SS_exp_name_s[seed]
-
-    You can force datestamp=True by setting ``FORCE_DATESTAMP=True`` in 
-    ``spinup/user_config.py``. 
-
-    Args:
-
-        exp_name (string): Name for experiment.
-
-        seed (int): Seed for random number generators used by experiment.
-
-        data_dir (string): Path to folder where results should be saved.
-            Default is the ``DEFAULT_DATA_DIR`` in ``spinup/user_config.py``.
-
-        datestamp (bool): Whether to include a date and timestamp in the
-            name of the save directory.
-
-    Returns:
-
-        logger_kwargs, a dict containing output_dir and exp_name.
+    Spinning Up algorithm relies on a few methods of Distribution.
+    It should implement at least: entropy(), log_prob(), sample().
     """
-
-    # Datestamp forcing
-    datestamp = datestamp or FORCE_DATESTAMP
-
-    # Make base path
-    ymd_time = time.strftime("%Y-%m-%d_") if datestamp else ''
-    relpath = ''.join([ymd_time, exp_name])
     
-    if seed is not None:
-        # Make a seed-specific subfolder in the experiment directory.
-        if datestamp:
-            hms_time = time.strftime("%Y-%m-%d_%H-%M-%S")
-            subfolder = ''.join([hms_time, '-', exp_name, '_s', str(seed)])
-        else:
-            subfolder = ''.join([exp_name, '_s', str(seed)])
-        relpath = osp.join(relpath, subfolder)
+    def __init__(self, logits):
+        self.dist = Categorical(logits=logits)
+    
+    def entropy(self):
+        return self.dist.entropy()
+    
+    def log_prob(self, value):
+        return self.dist.log_prob(value)
+    
+    def sample(self):
+        return self.dist.sample()
 
-    data_dir = data_dir or DEFAULT_DATA_DIR
-    logger_kwargs = dict(output_dir=os.path.join(data_dir, relpath), 
-                         exp_name=exp_name)
-    return logger_kwargs
+class CustomActor(Actor):
+    
+    def __init__(self, obs_dim, act_dim, hidden_sizes, activation):
+        super().__init__()
+        self.logits_net = mlp([obs_dim] + list(hidden_sizes) + [act_dim], activation)
 
-env_fn = maze.MazeEnv
+    def _distribution(self, obs):
+        logits = self.logits_net(obs)
+        return DummyDistribution(logits=logits)
 
-logger_kwargs = setup_logger_kwargs("test_exp")
+    def _log_prob_from_distribution(self, pi, act):
+        return pi.log_prob(act)
 
-ppo(env_fn=env_fn, logger_kwargs=logger_kwargs)
+class MazeActorCritic(nn.Module):
+
+
+    def __init__(self, observation_space, action_space, 
+                 hidden_sizes=(32,32), activation=nn.Tanh):
+        super().__init__()
+
+        obs_dim = observation_space.shape[0]
+
+        # policy builder depends on action space
+        #if isinstance(action_space, Box):
+        #    self.pi = MLPGaussianActor(obs_dim, action_space.shape[0], hidden_sizes, activation)
+        #elif isinstance(action_space, Discrete):
+        self.pi = CustomActor(obs_dim, action_space.n, hidden_sizes, activation)
+
+        # build value function
+        self.v  = MLPCritic(obs_dim, hidden_sizes, activation)
+
+    def step(self, obs):
+        with torch.no_grad():
+            pi = self.pi._distribution(obs)
+            a = pi.sample()
+            logp_a = self.pi._log_prob_from_distribution(pi, a)
+            v = self.v(obs)
+        return a.numpy(), v.numpy(), logp_a.numpy()
+
+    def act(self, obs):
+        return self.step(obs)[0]
+
+"""
+class PolicyNetwork(nn.Module):
+    
+    def __init__(self, obs_dim, act_dim, hidden_sizes, activation):
+        super().__init__()
+        self.logits_net = mlp([obs_dim] + list(hidden_sizes) + [act_dim], activation)
+    
+    def _distribution(self, obs):
+        pass
+    
+    def _log_prob_from_distribution(self, pi, act):
+        pass
+
+    def forward(self, obs, act=None):
+        # Produce action distributions for given observations, and 
+        # optionally compute the log likelihood of given actions under
+        # those distributions.
+        pi = self._distribution(obs)
+        logp_a = None
+        if act is not None:
+            logp_a = self._log_prob_from_distribution(pi, act)
+        return pi, logp_a
+
+    def sample(self):
+        pass
+    
+    def log_prob(self, act):
+        pass
+"""
+
+# pi:
+#  pi = self.pi._distribution(obs)
+#   _log_prob_from_distribution(pi, a)
+#  pi.sample()
+#  pi.log_prob(act)
+# 
+##
+
+if __name__ == '__main__':
+    
+    #activation=nn.Tanh
+    #a = MLPCategoricalActor(3,2,[4,5],activation=nn.Tanh)
+    
+    env_fn = maze.MazeEnv
+
+    exp_name = 'maze-x'
+
+    logger_kwargs = dict(
+        exp_name=exp_name,
+        output_dir='log_{}'.format(exp_name)
+    )
+    
+    actor_critic = MazeActorCritic
+    
+    # def ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0, 
+    #         steps_per_epoch=4000, epochs=50, gamma=0.99, clip_ratio=0.2, pi_lr=3e-4,
+    #         vf_lr=1e-3, train_pi_iters=80, train_v_iters=80, lam=0.97, max_ep_len=1000,
+    #         target_kl=0.01, logger_kwargs=dict(), save_freq=10)
+    ppo(env_fn=env_fn, actor_critic=actor_critic,
+        logger_kwargs=logger_kwargs)
