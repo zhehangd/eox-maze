@@ -16,7 +16,7 @@ register(
 
 Train
 ```bash
-python -m spinup.run ppo --hid "[32,32]" --env EoxMaze-v0 --exp_name eox-x3 --gamma 0.999 --epochs 200000 --steps_per_epoch 1000
+python train.py
 ```
 
 Plot traning progress

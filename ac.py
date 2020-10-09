@@ -11,6 +11,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from gym import spaces
+
 def mlp(sizes, activation, output_activation=nn.Identity):
     layers = []
     for j in range(len(sizes)-1):
@@ -39,11 +41,16 @@ class DummyDistribution(object):
 
 class CustomActor(Actor):
     
-    def __init__(self, obs_dim, act_dim, hidden_sizes, activation):
+    def __init__(self, obs_dim, act_dim, mem_dim, hidden_sizes, activation):
         super().__init__()
-        self.logits_net = mlp([obs_dim] + list(hidden_sizes) + [act_dim], activation)
+        out_dim = act_dim + mem_dim
+        net_size = [obs_dim] + list(hidden_sizes) + [out_dim]
+        self.logits_net = mlp(net_size, activation)
+        self.act_dim = act_dim
+        self.mem_dim = mem_dim
 
     def _distribution(self, obs):
+        #logits = self.logits_net(obs)[...,self.act_dim:]
         logits = self.logits_net(obs)
         return DummyDistribution(logits=logits)
 
@@ -56,12 +63,24 @@ class MazeActorCritic(nn.Module):
         super().__init__()
 
         obs_dim = observation_space.shape[0]
-
+        
+        isinstance(action_space, spaces.Discrete)
+        act_dim = action_space.n
+        mem_dim = 0
+        #assert isinstance(action_space, spaces.Tuple)
+        #assert len(action_space) == 2
+        #act_space, mem_space = action_space
+        #assert isinstance(act_space, spaces.Discrete)
+        #assert isinstance(mem_space, spaces.Box)
+        #act_dim = act_space.n
+        #mem_dim = mem_space.shape[0]
+        
         # policy builder depends on action space
         #if isinstance(action_space, Box):
         #    self.pi = MLPGaussianActor(obs_dim, action_space.shape[0], hidden_sizes, activation)
         #elif isinstance(action_space, Discrete):
-        self.pi = CustomActor(obs_dim, action_space.n, hidden_sizes, activation)
+        self.pi = CustomActor(obs_dim, act_dim, mem_dim,
+                              hidden_sizes, activation)
 
         # build value function
         self.v  = MLPCritic(obs_dim, hidden_sizes, activation)

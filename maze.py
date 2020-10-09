@@ -89,8 +89,14 @@ class MazeEnv(gym.Env, EzPickle):
         self.disp = disp
         
         fsize = (2*VISION_RADIUS+1)**2
+        
+        num_acts = 4
+        num_mems = 0
         self.observation_space = spaces.Box(-1, 1, shape=(fsize,), dtype=np.float32)
-        self.action_space = spaces.Discrete(4)
+        self.action_space = spaces.Discrete(num_acts)
+        #self.action_space = spaces.Tuple( \
+        #    (spaces.Discrete(num_acts),   \
+        #     spaces.Box(-1, 1, shape=(num_mems,))))
     
     def step(self, action):
         return self.core.step(action)

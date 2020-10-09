@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from spinup.algos.pytorch.ppo.ppo import ppo as ppo
+import ppo
 
 import ac
 import maze
@@ -54,18 +54,22 @@ if __name__ == '__main__':
     
     env_fn = maze.MazeEnv
 
-    exp_name = 'maze-x'
-
+    exp_name = 'exp_data'
+    
     logger_kwargs = dict(
         exp_name=exp_name,
-        output_dir='log_{}'.format(exp_name)
+        output_dir='{}'.format(exp_name)
     )
     
     actor_critic = ac.MazeActorCritic
     
+    num_epochs = 200000
+    steps_per_epoch = 500
+    gamma=0.999
     # def ppo(env_fn, actor_critic=core.MLPActorCritic, ac_kwargs=dict(), seed=0, 
     #         steps_per_epoch=4000, epochs=50, gamma=0.99, clip_ratio=0.2, pi_lr=3e-4,
     #         vf_lr=1e-3, train_pi_iters=80, train_v_iters=80, lam=0.97, max_ep_len=1000,
     #         target_kl=0.01, logger_kwargs=dict(), save_freq=10)
-    ppo(env_fn=env_fn, actor_critic=actor_critic,
-        logger_kwargs=logger_kwargs, epochs=200)
+    ppo.ppo(env_fn=env_fn, actor_critic=actor_critic,
+            logger_kwargs=logger_kwargs, epochs=num_epochs,
+            steps_per_epoch=steps_per_epoch,gamma=gamma)
